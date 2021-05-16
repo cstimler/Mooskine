@@ -7,6 +7,8 @@
 //
 
 import UIKit
+import CoreData
+
 
 class NotesListViewController: UIViewController, UITableViewDataSource {
     /// A table view that displays a list of notes for a notebook
@@ -16,6 +18,8 @@ class NotesListViewController: UIViewController, UITableViewDataSource {
     var notebook: Notebook!
     
     var notes:[Note] = []
+    
+    var dataController:DataController!
 
     /// A date formatter for date text in note cells
     let dateFormatter: DateFormatter = {
@@ -30,6 +34,15 @@ class NotesListViewController: UIViewController, UITableViewDataSource {
         navigationItem.title = notebook.name
         navigationItem.rightBarButtonItem = editButtonItem
         updateEditButtonState()
+        let fetchRequest:NSFetchRequest<Note> = Note.fetchRequest()
+        let predicate = NSPredicate(format: "notebook == %@", notebook)
+        let sortDescriptor = NSSortDescriptor(key: "creationDate", ascending: true)
+        fetchRequest.predicate = predicate
+        fetchRequest.sortDescriptors = [sortDescriptor]
+        if let request = try? dataController.viewContext.fetch(fetchRequest) {
+            notes = request
+        }
+        
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -55,7 +68,13 @@ class NotesListViewController: UIViewController, UITableViewDataSource {
     func addNote() {
         // TODO:
     //    notebook.addNote()
-        tableView.insertRows(at: [IndexPath(row: numberOfNotes - 1, section: 0)], with: .fade)
+        var note = Note(context: dataController.viewContext)
+        note.text = "New Note"
+        note.creationDate = Date()
+        note.notebook = notebook //?
+        try? dataController.viewContext.save()
+        notes.insert(note, at: 0)
+        tableView.insertRows(at: [IndexPath(row: 0, section: 0)], with: .fade)
         updateEditButtonState()
     }
 
@@ -63,6 +82,10 @@ class NotesListViewController: UIViewController, UITableViewDataSource {
     func deleteNote(at indexPath: IndexPath) {
         // TODO
        // notebook.removeNote(at: indexPath.row)
+        let noteToDelete = note(at: indexPath)
+        dataController.viewContext.delete(noteToDelete)
+        try? dataController.viewContext.save()
+        notes.remove(at: indexPath.row)
         tableView.deleteRows(at: [indexPath], with: .fade)
         if numberOfNotes == 0 {
             setEditing(false, animated: true)
@@ -126,6 +149,7 @@ class NotesListViewController: UIViewController, UITableViewDataSource {
         if let vc = segue.destination as? NoteDetailsViewController {
             if let indexPath = tableView.indexPathForSelectedRow {
                 vc.note = note(at: indexPath)
+                vc.dataController = dataController
 
                 vc.onDelete = { [weak self] in
                     if let indexPath = self?.tableView.indexPathForSelectedRow {
